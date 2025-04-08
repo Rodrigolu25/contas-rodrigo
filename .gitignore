@@ -1,5 +1,7 @@
-venv/
+tempCodeRunnerFile.py
 __pycache__/
 *.pyc
-*.db
-*.env
+*.pyo
+*.pyd
+.env
+venv/
