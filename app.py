@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
 from sqlalchemy import extract, func
 from pathlib import Path
-import sqlite3
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -47,18 +46,7 @@ class Transaction(db.Model):
             raise ValueError("Formato de data inválido. Use 'YYYY-MM-DD'")
 
 with app.app_context():
-    try:
-        db.create_all()
-        print(f"Database created at: {DB_PATH}")
-    except Exception as e:
-        print(f"Error creating database: {e}")
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            conn.close()
-            db.create_all()
-        except Exception as e:
-            print(f"Failed to create database: {e}")
-            raise
+    db.create_all()
 
 @app.context_processor
 def inject_now():
@@ -70,22 +58,16 @@ def inject_now():
 def format_transactions(transactions):
     formatted = []
     for t in transactions:
-        try:
-            transaction_date = t.date if isinstance(t.date, date) else datetime.strptime(t.date, '%Y-%m-%d').date()
-            
-            formatted.append({
-                'id': t.id,
-                'description': t.description,
-                'amount': t.amount,
-                'category': t.category,
-                'type': t.type,
-                'date': transaction_date.strftime('%d/%m/%Y'),
-                'original_date': transaction_date,
-                'deleted_at': t.deleted_at.strftime('%d/%m/%Y %H:%M') if t.deleted_at else None
-            })
-        except Exception as e:
-            print(f"Error formatting transaction {t.id}: {str(e)}")
-            continue
+        transaction_date = t.date if isinstance(t.date, date) else datetime.strptime(t.date, '%Y-%m-%d').date()
+        formatted.append({
+            'id': t.id,
+            'description': t.description,
+            'amount': t.amount,
+            'category': t.category,
+            'type': t.type,
+            'date': transaction_date.strftime('%d/%m/%Y'),
+            'deleted_at': t.deleted_at.strftime('%d/%m/%Y %H:%M') if t.deleted_at else None
+        })
     return formatted
 
 @app.route('/')
@@ -148,7 +130,7 @@ def add_transaction():
             flash(f'Dados inválidos: {str(e)}', 'error')
         except Exception as e:
             db.session.rollback()
-            flash('Erro ao adicionar transação!', 'error')
+ flash('Erro ao adicionar transação!', 'error')
             print(f"Error adding transaction: {e}")
     
     return render_template('add_transaction.html', 
@@ -283,17 +265,6 @@ def empty_trash():
         flash('Erro ao esvaziar lixeira', 'error')
         print(f"Error emptying trash: {e}")
     
-    return redirect(url_for('trash'))
-
+    return redirect(url_for('trash ```python
 if __name__ == '__main__':
-    try:
-        if not DB_PATH.exists():
-            DB_PATH.touch(mode=0o666)
-        with open(DB_PATH, 'a'):
-            pass
-        print("Database permissions verified")
-    except PermissionError:
-        print(f"Permission denied for database file: {DB_PATH}")
-        print("Please check directory permissions or run as administrator")
-    
     app.run(debug=True)
