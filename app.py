@@ -1,18 +1,92 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
 from sqlalchemy import extract, func
-from dados import GerenciadorTransacoes  # Importamos nosso gerenciador
+from pathlib import Path
+import sqlite3
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-# Inicializa o gerenciador de transações
-db = GerenciadorTransacoes()
+# Configuração do banco de dados
+BASE_DIR = Path(__file__).parent
+DB_DIR = BASE_DIR / 'instance'
+DB_PATH = DB_DIR / 'financas.db'
+DB_DIR.mkdir(exist_ok=True)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'connect_args': {'check_same_thread': False}
+}
+
+db = SQLAlchemy(app)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    type = db.Column(db.String(10), nullable=False)  # 'income' ou 'expense'
+    date = db.Column(db.Date, nullable=False)
+    deleted_at = db.Column(db.DateTime)
+
+    def __init__(self, description, amount, category, type, date):
+        self.description = description
+        self.amount = float(amount)
+        self.category = category
+        self.type = type
+        
+        if isinstance(date, str):
+            self.date = datetime.strptime(date, '%Y-%m-%d').date()
+        elif isinstance(date, date):
+            self.date = date
+        else:
+            raise ValueError("Formato de data inválido. Use 'YYYY-MM-DD'")
+
+with app.app_context():
+    try:
+        db.create_all()
+        print(f"Database created at: {DB_PATH}")
+    except Exception as e:
+        print(f"Error creating database: {e}")
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.close()
+            db.create_all()
+        except Exception as e:
+            print(f"Failed to create database: {e}")
+            raise
 
 @app.context_processor
 def inject_now():
-    return {'now': datetime.now()}
+    return {
+        'now': datetime.now(),
+        'current_year': date.today().year
+    }
+
+def format_transactions(transactions):
+    formatted = []
+    for t in transactions:
+        try:
+            transaction_date = t.date if isinstance(t.date, date) else datetime.strptime(t.date, '%Y-%m-%d').date()
+            
+            formatted.append({
+                'id': t.id,
+                'description': t.description,
+                'amount': t.amount,
+                'category': t.category,
+                'type': t.type,
+                'date': transaction_date.strftime('%d/%m/%Y'),
+                'original_date': transaction_date,
+                'deleted_at': t.deleted_at.strftime('%d/%m/%Y %H:%M') if t.deleted_at else None
+            })
+        except Exception as e:
+            print(f"Error formatting transaction {t.id}: {str(e)}")
+            continue
+    return formatted
 
 @app.route('/')
 def index():
@@ -20,40 +94,62 @@ def index():
     current_month = today.month
     current_year = today.year
     
-    # Obtém totais do banco de dados
-    incomes = db.obter_total_por_tipo('income', current_month, current_year)
-    expenses = db.obter_total_por_tipo('expense', current_month, current_year)
+    incomes = db.session.scalar(
+        db.select(func.sum(Transaction.amount))
+        .where(Transaction.type == 'income')
+        .where(Transaction.deleted_at.is_(None))
+        .where(extract('month', Transaction.date) == current_month)
+        .where(extract('year', Transaction.date) == current_year)
+    ) or 0
+    
+    expenses = db.session.scalar(
+        db.select(func.sum(Transaction.amount))
+        .where(Transaction.type == 'expense')
+        .where(Transaction.deleted_at.is_(None))
+        .where(extract('month', Transaction.date) == current_month)
+        .where(extract('year', Transaction.date) == current_year)
+    ) or 0
+    
     balance = incomes - expenses
     
-    # Últimas transações
-    transactions = db.obter_ultimas_transacoes(5)
+    transactions = db.session.scalars(
+        db.select(Transaction)
+        .where(Transaction.deleted_at.is_(None))
+        .order_by(Transaction.date.desc())
+        .limit(5)
+    ).all()
     
     return render_template('index.html', 
                          balance=balance, 
                          incomes=incomes, 
                          expenses=expenses, 
-                         transactions=transactions)
+                         transactions=format_transactions(transactions))
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_transaction():
     if request.method == 'POST':
         try:
-            transaction_data = {
-                'description': request.form['description'],
-                'amount': float(request.form['amount']),
-                'category': request.form['category'],
-                'type': request.form['type'],
-                'date': datetime.strptime(request.form['transaction_date'], '%Y-%m-%d').date()
-            }
+            transaction = Transaction(
+                description=request.form['description'],
+                amount=request.form['amount'],
+                category=request.form['category'],
+                type=request.form['type'],
+                date=request.form['transaction_date']
+            )
             
-            if not transaction_data['description'] or transaction_data['amount'] <= 0:
+            if not transaction.description or transaction.amount <= 0:
                 flash('Descrição e valor positivo são obrigatórios!', 'error')
             else:
-                db.adicionar_transacao(transaction_data)
+                db.session.add(transaction)
+                db.session.commit()
                 flash('Transação adicionada com sucesso!', 'success')
                 return redirect(url_for('index'))
-        except ValueError:
-            flash('Data ou valor inválido!', 'error')
+        except ValueError as e:
+            flash(f'Dados inválidos: {str(e)}', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash('Erro ao adicionar transação!', 'error')
+            print(f"Error adding transaction: {e}")
     
     return render_template('add_transaction.html', 
                          default_date=date.today().strftime('%Y-%m-%d'))
@@ -61,11 +157,15 @@ def add_transaction():
 @app.route('/delete/<int:id>')
 def delete_transaction(id):
     try:
-        db.remover_transacao(id)
+        transaction = db.get_or_404(Transaction, id)
+        transaction.deleted_at = datetime.now()
+        db.session.commit()
         flash('Transação movida para a lixeira!', 'success')
     except Exception as e:
-        print(f"Erro ao excluir: {str(e)}")
+        db.session.rollback()
         flash('Erro ao excluir transação', 'error')
+        print(f"Error deleting transaction: {e}")
+    
     return redirect(request.referrer or url_for('index'))
 
 @app.route('/extrato')
@@ -74,79 +174,126 @@ def extrato():
         month = request.args.get('month', type=int)
         year = request.args.get('year', type=int)
         
-        # Obtém transações com filtros
-        transactions = db.obter_transacoes_filtradas(month, year)
+        query = db.select(Transaction).where(Transaction.deleted_at.is_(None))
         
-        # Calcula totais
-        total_income = db.obter_total_por_tipo('income', month, year)
-        total_expense = db.obter_total_por_tipo('expense', month, year)
+        if year:
+            query = query.where(extract('year', Transaction.date) == year)
+        if month:
+            query = query.where(extract('month', Transaction.date) == month)
+        
+        transactions = db.session.scalars(
+            query.order_by(Transaction.date.desc())
+        ).all()
+        
+        total_income = db.session.scalar(
+            db.select(func.sum(Transaction.amount))
+            .where(Transaction.type == 'income')
+            .where(Transaction.deleted_at.is_(None))
+            .where(extract('year', Transaction.date) == year if year else True)
+            .where(extract('month', Transaction.date) == month if month else True)
+        ) or 0
+        
+        total_expense = db.session.scalar(
+            db.select(func.sum(Transaction.amount))
+            .where(Transaction.type == 'expense')
+            .where(Transaction.deleted_at.is_(None))
+            .where(extract('year', Transaction.date) == year if year else True)
+            .where(extract('month', Transaction.date) == month if month else True)
+        ) or 0
+        
         balance = total_income - total_expense
         
-        # Anos disponíveis
-        available_years = db.obter_anos_disponiveis()
+        available_years = [
+            row[0] for row in db.session.execute(
+                db.select(extract('year', Transaction.date).distinct())
+                .where(Transaction.deleted_at.is_(None))
+                .order_by(extract('year', Transaction.date).desc())
+            ).all() if row[0] is not None
+        ]
         
-        return render_template('extrato.html', 
-                            transactions=transactions,
+        return render_template('extrato.html',
+                            transactions=format_transactions(transactions),
                             total_income=total_income,
                             total_expense=total_expense,
                             balance=balance,
                             selected_month=month,
                             selected_year=year,
                             available_years=available_years)
+    
     except Exception as e:
-        print(f"Erro ao gerar extrato: {str(e)}")
-        flash('Ocorreu um erro ao gerar o extrato. Por favor, tente novamente.', 'error')
+        flash(f'Ocorreu um erro ao gerar o extrato: {str(e)}', 'error')
+        print(f"Error generating report: {str(e)}")
         return redirect(url_for('index'))
 
 @app.route('/lixeira')
 def trash():
-    transactions = db.obter_transacoes_removidas()
-    return render_template('trash.html', transactions=transactions)
+    try:
+        transactions = db.session.scalars(
+            db.select(Transaction)
+            .where(Transaction.deleted_at.isnot(None))
+            .order_by(Transaction.deleted_at.desc())
+        ).all()
+        
+        return render_template('trash.html', 
+                            transactions=format_transactions(transactions))
+    except Exception as e:
+        flash('Erro ao acessar a lixeira.', 'error')
+        print(f"Error accessing trash: {e}")
+        return redirect(url_for('index'))
 
-@app.route('/restaurar/<int:id>')
+@app.route('/restore/<int:id>')
 def restore_transaction(id):
     try:
-        db.restaurar_transacao(id)
+        transaction = db.get_or_404(Transaction, id)
+        transaction.deleted_at = None
+        db.session.commit()
         flash('Transação restaurada com sucesso!', 'success')
     except Exception as e:
-        print(f"Erro ao restaurar: {str(e)}")
+        db.session.rollback()
         flash('Erro ao restaurar transação', 'error')
+        print(f"Error restoring transaction: {e}")
+    
     return redirect(url_for('trash'))
 
-@app.route('/excluir-permanentemente/<int:id>')
+@app.route('/permanent-delete/<int:id>')
 def permanent_delete(id):
     try:
-        db.excluir_permanentemente(id)
+        transaction = db.get_or_404(Transaction, id)
+        db.session.delete(transaction)
+        db.session.commit()
         flash('Transação excluída permanentemente!', 'success')
     except Exception as e:
-        print(f"Erro ao excluir permanentemente: {str(e)}")
+        db.session.rollback()
         flash('Erro ao excluir transação', 'error')
+        print(f"Error permanently deleting transaction: {e}")
+    
     return redirect(url_for('trash'))
 
-@app.route('/esvaziar-lixeira', methods=['POST'])
+@app.route('/empty-trash', methods=['POST'])
 def empty_trash():
     try:
-        db.esvaziar_lixeira()
-        flash('Lixeira esvaziada com sucesso!', 'success')
+        deleted_count = db.session.execute(
+            db.delete(Transaction)
+            .where(Transaction.deleted_at.isnot(None))
+        ).rowcount
+        db.session.commit()
+        flash(f'{deleted_count} transações removidas permanentemente!', 'success')
     except Exception as e:
-        print(f"Erro ao esvaziar lixeira: {str(e)}")
+        db.session.rollback()
         flash('Erro ao esvaziar lixeira', 'error')
+        print(f"Error emptying trash: {e}")
+    
     return redirect(url_for('trash'))
 
-@app.route('/backup', methods=['POST'])
-def criar_backup():
-    try:
-        db.salvar_backup()
-        flash('Backup criado com sucesso!', 'success')
-    except Exception as e:
-        print(f"Erro ao criar backup: {str(e)}")
-        flash('Erro ao criar backup', 'error')
-    return redirect(url_for('index'))
-
-@app.teardown_appcontext
-def fechar_conexao(exception=None):
-    """Garante que o backup seja feito ao encerrar"""
-    db.salvar_backup()
-
 if __name__ == '__main__':
+    try:
+        if not DB_PATH.exists():
+            DB_PATH.touch(mode=0o666)
+        with open(DB_PATH, 'a'):
+            pass
+        print("Database permissions verified")
+    except PermissionError:
+        print(f"Permission denied for database file: {DB_PATH}")
+        print("Please check directory permissions or run as administrator")
+    
     app.run(debug=True)
