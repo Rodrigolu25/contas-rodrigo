@@ -3,128 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanças Pessoais</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            padding-top: 20px;
-            background-color: #f8f9fa;
-        }
-        .card {
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-        }
-        .card-header {
-            border-radius: 10px 10px 0 0 !important;
-        }
-        .table-responsive {
-            overflow-x: auto;
-        }
-        .badge {
-            font-size: 0.9em;
-            padding: 5px 8px;
-        }
-        .btn-excluir {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
-        }
-        .navbar {
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .total-card {
-            transition: transform 0.3s;
-        }
-        .total-card:hover {
-            transform: translateY(-5px);
-        }
-        .month-selector {
-            max-width: 300px;
-            margin: 0 auto;
-        }
-        .alert {
-            margin-top: 20px;
-        }
-    </style>
+    <title>Finance App - {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary rounded mb-4">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                    <i class="bi bi-cash-stack"></i> Finanças Pessoais
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                                <i class="bi bi-house-door"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'adicionar_movimentacao' %}active{% endif %}" href="{{ url_for('adicionar_movimentacao') }}">
-                                <i class="bi bi-plus-circle"></i> Adicionar
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'extrato' %}active{% endif %}" href="{{ url_for('extrato') }}">
-                                <i class="bi bi-list-check"></i> Extrato
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'relatorios' or request.endpoint == 'relatorio_mensal' or request.endpoint == 'relatorio_anual' %}active{% endif %}" href="{{ url_for('relatorios') }}">
-                                <i class="bi bi-graph-up"></i> Relatórios
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+    <header>
+        <div class="header-container">
+            <h1><i class="fas fa-wallet"></i> Finance App</h1>
+            <nav>
+                <ul>
+                    <li><a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">
+                        <i class="fas fa-home"></i> Início
+                    </a></li>
+                    <li><a href="{{ url_for('add_transaction') }}" class="{% if request.endpoint == 'add_transaction' %}active{% endif %}">
+                        <i class="fas fa-plus-circle"></i> Adicionar
+                    </a></li>
+                    <li><a href="{{ url_for('extrato') }}" class="{% if request.endpoint == 'extrato' %}active{% endif %}">
+                        <i class="fas fa-file-alt"></i> Extrato
+                    </a></li>
+                    <li><a href="{{ url_for('trash') }}" class="{% if request.endpoint == 'trash' %}active{% endif %}">
+                        <i class="fas fa-trash"></i> Lixeira
+                    </a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
 
+    <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">
+                            <span class="flash-icon">
+                                {% if category == 'success' %}
+                                    <i class="fas fa-check-circle"></i>
+                                {% elif category == 'error' %}
+                                    <i class="fas fa-exclamation-circle"></i>
+                                {% elif category == 'warning' %}
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                {% endif %}
+                            </span>
+                            {{ message }}
+                            <span class="flash-close" onclick="this.parentElement.remove()">
+                                <i class="fas fa-times"></i>
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
             {% endif %}
         {% endwith %}
 
-        {% block content %}{% endblock %}
-    </div>
+        <div class="content-container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
 
-    <footer class="mt-5 mb-3 text-center text-muted">
-        <small>Sistema de Finanças Pessoais &copy; {{ now.year if now else datetime.now().year }}</small>
+    <footer>
+        <div class="footer-container">
+            <p>&copy; {{ now.year }} Finance App - Controle Financeiro Pessoal</p>
+        </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Função para confirmar exclusões
-        function confirmarExclusao(event) {
-            if (!confirm('Tem certeza que deseja excluir este item?')) {
-                event.preventDefault();
-            }
-        }
+        // Fechar mensagens flash automaticamente
+        setTimeout(() => {
+            const flashes = document.querySelectorAll('.flash');
+            flashes.forEach(flash => {
+                flash.style.opacity = '0';
+                setTimeout(() => flash.remove(), 300);
+            });
+        }, 5000);
 
-        // Adiciona confirmção a todos os links de exclusão
-        document.querySelectorAll('a[href*="excluir"]').forEach(link => {
-            link.addEventListener('click', confirmarExclusao);
-        });
-
-        // Ativa tooltips
-        document.addEventListener('DOMContentLoaded', function() {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
+        // Confirmar ações destrutivas
+        document.querySelectorAll('.btn-danger, .delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const confirmMessage = btn.hasAttribute('data-confirm') 
+                    ? btn.getAttribute('data-confirm')
+                    : 'Tem certeza que deseja executar esta ação?';
+                
+                if (!confirm(confirmMessage)) {
+                    e.preventDefault();
+                }
             });
         });
+
+        // Adicionar classe active ao item de menu pai quando em rotas filhas
+        document.querySelectorAll('nav ul li a').forEach(link => {
+            const currentPath = window.location.pathname;
+            if (link.getAttribute('href') === currentPath) {
+                link.classList.add('active');
+            }
+        });
     </script>
-    {% block scripts %}{% endblock %}
 </body>
 </html>

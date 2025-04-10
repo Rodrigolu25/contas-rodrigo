@@ -1,43 +1,20 @@
 from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
 db = SQLAlchemy()
 
-class Ganho(db.Model):
+class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    valor = db.Column(db.Float, nullable=False)
-    descricao = db.Column(db.String(200))
-    data = db.Column(db.Date, nullable=False)
-    origem = db.Column(db.String(50))  # Ex: Restaurante Fixo, iFood
-    
-    def __repr__(self):
-        return f'<Ganho {self.descricao} - R${self.valor}>'
+    description = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    type = db.Column(db.String(10), nullable=False)  # 'income' or 'expense'
+    date = db.Column(db.Date, nullable=False, default=datetime.now)
+   
+    def delete(self):
+        """Exclui permanentemente a transação"""
+        db.session.delete(self)
+        db.session.commit()
 
-class Despesa(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    valor = db.Column(db.Float, nullable=False)
-    descricao = db.Column(db.String(200))
-    data = db.Column(db.Date, nullable=False)
-    categoria = db.Column(db.String(50))  # Ex: Alimentação, Transporte
-    
     def __repr__(self):
-        return f'<Despesa {self.descricao} - R${self.valor}>'
-
-class CartaoCredito(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    valor = db.Column(db.Float, nullable=False)
-    descricao = db.Column(db.String(200))
-    data = db.Column(db.Date, nullable=False)
-    parcela = db.Column(db.String(20))  # Ex: 1/3, À vista
-    
-    def __repr__(self):
-        return f'<Cartao {self.descricao} - R${self.valor}>'
-
-class Donativo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    valor = db.Column(db.Float, nullable=False)
-    descricao = db.Column(db.String(200))
-    data = db.Column(db.Date, nullable=False)
-    instituicao = db.Column(db.String(100))
-    
-    def __repr__(self):
-        return f'<Donativo {self.instituicao} - R${self.valor}>'
+        return f'<Transaction {self.description}>'

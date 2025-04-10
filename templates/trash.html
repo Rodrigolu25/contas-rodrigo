@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Lixeira{% endblock %}
+
+{% block content %}
+<section class="trash">
+    <div class="header-with-button">
+        <h2><i class="fas fa-trash"></i> Lixeira</h2>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+    
+    {% if transactions %}
+        <div class="table-responsive">
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                        <th>Excluído em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr class="{% if transaction.type == 'income' %}income{% else %}expense{% endif %}">
+                        <td>{{ transaction.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ transaction.description }}</td>
+                        <td class="amount">
+                            {% if transaction.type == 'income' %}+{% else %}-{% endif %}
+                            R$ {{ "%.2f"|format(transaction.amount) }}
+                        </td>
+                        <td>{{ transaction.deleted_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="actions">
+                            <a href="{{ url_for('restore_transaction', id=transaction.id) }}" 
+                               class="btn btn-success btn-sm"
+                               title="Restaurar">
+                                <i class="fas fa-undo"></i>
+                            </a>
+                            <a href="{{ url_for('permanent_delete', id=transaction.id) }}" 
+                               class="btn btn-danger btn-sm"
+                               title="Excluir permanentemente"
+                               onclick="return confirm('Tem certeza que deseja excluir permanentemente esta transação?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="trash-actions">
+            <form method="POST" action="{{ url_for('empty_trash') }}" class="inline-form">
+                <button type="submit" class="btn btn-danger" 
+                        onclick="return confirm('Tem certeza que deseja esvaziar a lixeira? Esta ação não pode ser desfeita.')">
+                    <i class="fas fa-trash-alt"></i> Esvaziar Lixeira
+                </button>
+            </form>
+        </div>
+    {% else %}
+        <div class="no-transactions">
+            <p>A lixeira está vazia.</p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Voltar para o início
+            </a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

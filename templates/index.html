@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Início{% endblock %}
+
+{% block content %}
+<section class="dashboard">
+    <div class="balance-card">
+        <h2>Saldo Atual</h2>
+        <p class="amount {% if balance >= 0 %}positive{% else %}negative{% endif %}">
+            R$ {{ "%.2f"|format(balance) }}
+        </p>
+        <a href="{{ url_for('add_transaction') }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus-circle"></i> Nova Transação
+        </a>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card income">
+            <h3>Receitas</h3>
+            <p>R$ {{ "%.2f"|format(incomes) }}</p>
+            <a href="{{ url_for('extrato', type='income') }}" class="btn btn-outline btn-sm">
+                <i class="fas fa-eye"></i> Ver Todas
+            </a>
+        </div>
+        <div class="stat-card expense">
+            <h3>Despesas</h3>
+            <p>R$ {{ "%.2f"|format(expenses) }}</p>
+            <a href="{{ url_for('extrato', type='expense') }}" class="btn btn-outline btn-sm">
+                <i class="fas fa-eye"></i> Ver Todas
+            </a>
+        </div>
+    </div>
+
+    <div class="recent-transactions">
+        <div class="header-with-button">
+            <h2>Últimas Transações</h2>
+            <a href="{{ url_for('extrato') }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-file-alt"></i> Ver Extrato Completo
+            </a>
+        </div>
+        
+        {% if transactions %}
+            <div class="table-responsive">
+                <table class="transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th>Categoria</th>
+                            <th>Tipo</th>
+                            <th>Valor</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr class="{% if transaction.type == 'income' %}income{% else %}expense{% endif %}">
+                            <td>{{ transaction.date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ transaction.description }}</td>
+                            <td>{{ transaction.category }}</td>
+                            <td>{{ 'Receita' if transaction.type == 'income' else 'Despesa' }}</td>
+                            <td class="amount">
+                                {% if transaction.type == 'income' %}+{% else %}-{% endif %}
+                                R$ {{ "%.2f"|format(transaction.amount) }}
+                            </td>
+                            <td class="actions">
+                                <a href="{{ url_for('delete_transaction', id=transaction.id) }}" 
+                                   class="btn btn-danger btn-sm"
+                                   title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="no-transactions">
+                <p>Nenhuma transação registrada ainda.</p>
+                <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> Adicionar Primeira Transação
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

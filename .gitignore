@@ -1,7 +1,18 @@
-tempCodeRunnerFile.py
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
+*.py[cod]
+*.sqlite
+*.db
 venv/
+
+# Environment variables
+.env
+.env*
+
+# Backup files
+*.bak
+dados_backup.json
+
+# IDE
+.vscode/
+.idea/
