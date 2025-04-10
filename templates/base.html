@@ -42,8 +42,6 @@
                                     <i class="fas fa-check-circle"></i>
                                 {% elif category == 'error' %}
                                     <i class="fas fa-exclamation-circle"></i>
-                                {% elif category == 'warning' %}
-                                    <i class="fas fa-exclamation-triangle"></i>
                                 {% endif %}
                             </span>
                             {{ message }}
@@ -68,7 +66,6 @@
     </footer>
 
     <script>
-        // Fechar mensagens flash automaticamente
         setTimeout(() => {
             const flashes = document.querySelectorAll('.flash');
             flashes.forEach(flash => {
@@ -77,25 +74,13 @@
             });
         }, 5000);
 
-        // Confirmar ações destrutivas
         document.querySelectorAll('.btn-danger, .delete-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const confirmMessage = btn.hasAttribute('data-confirm') 
-                    ? btn.getAttribute('data-confirm')
-                    : 'Tem certeza que deseja executar esta ação?';
-                
+                const confirmMessage = btn.dataset.confirm || 'Tem certeza que deseja executar esta ação?';
                 if (!confirm(confirmMessage)) {
                     e.preventDefault();
                 }
             });
-        });
-
-        // Adicionar classe active ao item de menu pai quando em rotas filhas
-        document.querySelectorAll('nav ul li a').forEach(link => {
-            const currentPath = window.location.pathname;
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('active');
-            }
         });
     </script>
 </body>
