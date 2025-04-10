@@ -32,8 +32,6 @@
                                 {{ year }}
                             </option>
                         {% endfor %}
-                    {% else %}
-                        <option value="{{ now.year }}">{{ now.year }}</option>
                     {% endif %}
                 </select>
             </div>
@@ -82,7 +80,7 @@
                 <tbody>
                     {% for transaction in transactions %}
                     <tr class="{% if transaction.type == 'income' %}income{% else %}expense{% endif %}">
-                        <td>{{ transaction.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ transaction.date }}</td>
                         <td>{{ transaction.description }}</td>
                         <td>{{ transaction.category }}</td>
                         <td>{{ 'Receita' if transaction.type == 'income' else 'Despesa' }}</td>
@@ -93,7 +91,8 @@
                         <td class="actions">
                             <a href="{{ url_for('delete_transaction', id=transaction.id) }}" 
                                class="btn btn-danger btn-sm"
-                               title="Excluir">
+                               title="Excluir"
+                               data-confirm="Tem certeza que deseja mover para a lixeira?">
                                 <i class="fas fa-trash"></i>
                             </a>
                         </td>
