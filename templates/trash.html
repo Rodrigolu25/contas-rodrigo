@@ -26,13 +26,13 @@
                 <tbody>
                     {% for transaction in transactions %}
                     <tr class="{% if transaction.type == 'income' %}income{% else %}expense{% endif %}">
-                        <td>{{ transaction.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ transaction.date }}</td>
                         <td>{{ transaction.description }}</td>
                         <td class="amount">
                             {% if transaction.type == 'income' %}+{% else %}-{% endif %}
                             R$ {{ "%.2f"|format(transaction.amount) }}
                         </td>
-                        <td>{{ transaction.deleted_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ transaction.deleted_at }}</td>
                         <td class="actions">
                             <a href="{{ url_for('restore_transaction', id=transaction.id) }}" 
                                class="btn btn-success btn-sm"
@@ -42,8 +42,8 @@
                             <a href="{{ url_for('permanent_delete', id=transaction.id) }}" 
                                class="btn btn-danger btn-sm"
                                title="Excluir permanentemente"
-                               onclick="return confirm('Tem certeza que deseja excluir permanentemente esta transação?')">
-                                <i class="fas fa-trash"></i>
+                               data-confirm="Tem certeza que deseja excluir permanentemente esta transação?">
+                                <i class="fas fa-trash-alt"></i>
                             </a>
                         </td>
                     </tr>
@@ -53,8 +53,8 @@
         </div>
 
         <div class="trash-actions">
-            <form method="POST" action="{{ url_for('empty_trash') }}" class="inline-form">
-                <button type="submit" class="btn btn-danger" 
+            <form method="POST" action="{{ url_for('empty_trash') }}">
+                <button type="submit" class="btn btn-danger"
                         onclick="return confirm('Tem certeza que deseja esvaziar a lixeira? Esta ação não pode ser desfeita.')">
                     <i class="fas fa-trash-alt"></i> Esvaziar Lixeira
                 </button>
