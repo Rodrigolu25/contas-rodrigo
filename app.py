@@ -38,7 +38,6 @@ class Transaction(db.Model):
         self.amount = float(amount)
         self.category = category
         self.type = type
-        
         if isinstance(date, str):
             self.date = datetime.strptime(date, '%Y-%m-%d').date()
         elif isinstance(date, date):
@@ -71,12 +70,10 @@ def format_transactions(transactions):
     formatted = []
     for t in transactions:
         try:
-            if isinstance(t.date, date):
-                transaction_date = t.date
-            else:
-                print(f"Invalid date format for transaction {t.id}: {t.date}")
-                continue  # Skip this transaction if the date is invalid
-            
+            transaction_date = t.date if isinstance(t.date, date) else None
+            if not transaction_date:
+                print(f"Invalid date format for transaction {t.id}")
+                continue
             formatted.append({
                 'id': t.id,
                 'description': t.description,
@@ -97,7 +94,7 @@ def index():
     today = date.today()
     current_month = today.month
     current_year = today.year
-    
+
     incomes = db.session.scalar(
         db.select(func.sum(Transaction.amount))
         .where(Transaction.type == 'income')
@@ -105,7 +102,7 @@ def index():
         .where(extract('month', Transaction.date) == current_month)
         .where(extract('year', Transaction.date) == current_year)
     ) or 0
-    
+
     expenses = db.session.scalar(
         db.select(func.sum(Transaction.amount))
         .where(Transaction.type == 'expense')
@@ -113,38 +110,34 @@ def index():
         .where(extract('month', Transaction.date) == current_month)
         .where(extract('year', Transaction.date) == current_year)
     ) or 0
-    
+
     balance = incomes - expenses
-    
+
     transactions = db.session.scalars(
         db.select(Transaction)
         .where(Transaction.deleted_at.is_(None))
         .order_by(Transaction.date.desc())
         .limit(5)
     ).all()
-    
-    return render_template('index.html', 
-                         balance=balance, 
-                         incomes=incomes, 
-                         expenses=expenses, 
-                         transactions=format_transactions(transactions))
 
-@app.route('/add', methods=['GET', 'POST '])
+    return render_template('index.html',
+                           balance=balance,
+                           incomes=incomes,
+                           expenses=expenses,
+                           transactions=format_transactions(transactions))
+
+@app.route('/add', methods=['GET', 'POST'])
 def add_transaction():
     if request.method == 'POST':
         try:
-            transaction_date = request.form['transaction_date']
-            if not isinstance(transaction_date, str):
-                raise ValueError("A data deve ser uma string no formato 'YYYY-MM-DD'")
-            
             transaction = Transaction(
                 description=request.form['description'],
-                amount=request.form['amount'],
+                amount=float(request.form['amount']),
                 category=request.form['category'],
                 type=request.form['type'],
-                date=transaction_date
+                date=request.form['transaction_date']
             )
-            
+
             if not transaction.description or transaction.amount <= 0:
                 flash('Descrição e valor positivo são obrigatórios!', 'error')
             else:
@@ -152,15 +145,39 @@ def add_transaction():
                 db.session.commit()
                 flash('Transação adicionada com sucesso!', 'success')
                 return redirect(url_for('index'))
-        except ValueError as e:
-            flash(f'Dados inválidos: {str(e)}', 'error')
         except Exception as e:
             db.session.rollback()
-            flash('Erro ao adicionar transação!', 'error')
-            print(f"Error adding transaction: {e}")
-    
-    return render_template('add_transaction.html', 
-                         default_date=date.today().strftime('%Y-%m-%d'))
+            flash(f'Erro ao adicionar transação: {e}', 'error')
+
+    return render_template('add_transaction.html',
+                           default_date=date.today().strftime('%Y-%m-%d'))
+
+@app.route('/edit/<int:transaction_id>', methods=['GET', 'POST'])
+def edit_transaction(transaction_id):
+    transaction = Transaction.query.get(transaction_id)
+    if not transaction:
+        flash('Transação não encontrada!', 'error')
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        try:
+            transaction.description = request.form['description']
+            transaction.amount = float(request.form['amount'])
+            transaction.category = request.form['category']
+            transaction.type = request.form['type']
+            transaction.date = datetime.strptime(request.form['transaction_date'], '%Y-%m-%d').date()
+
+            if not transaction.description or transaction.amount <= 0:
+                flash('Descrição e valor positivo são obrigatórios!', 'error')
+            else:
+                db.session.commit()
+                flash('Transação editada com sucesso!', 'success')
+                return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao editar transação: {e}', 'error')
+
+    return render_template('edit_transaction.html', transaction=transaction)
 
 @app.route('/delete/<int:transaction_id>', methods=['POST'])
 def delete_transaction(transaction_id):
@@ -176,41 +193,8 @@ def delete_transaction(transaction_id):
         db.session.rollback()
         flash('Erro ao excluir transação!', 'error')
         print(f"Error deleting transaction: {e}")
-    
-    return redirect(url_for('index'))
 
-if __name__ == '__main__':
-    app.run(debug=True) ```python
-@app.route('/edit/<int:transaction_id>', methods=['GET', 'POST'])
-def edit_transaction(transaction_id):
-    transaction = Transaction.query.get(transaction_id)
-    if request.method == 'POST':
-        try:
-            transaction.description = request.form['description']
-            transaction.amount = request.form['amount']
-            transaction.category = request.form['category']
-            transaction.type = request.form['type']
-            transaction_date = request.form['transaction_date']
-            
-            if not isinstance(transaction_date, str):
-                raise ValueError("A data deve ser uma string no formato 'YYYY-MM-DD'")
-            
-            transaction.date = datetime.strptime(transaction_date, '%Y-%m-%d').date()
-            
-            if not transaction.description or transaction.amount <= 0:
-                flash('Descrição e valor positivo são obrigatórios!', 'error')
-            else:
-                db.session.commit()
-                flash('Transação editada com sucesso!', 'success')
-                return redirect(url_for('index'))
-        except ValueError as e:
-            flash(f'Dados inválidos: {str(e)}', 'error')
-        except Exception as e:
-            db.session.rollback()
-            flash('Erro ao editar transação!', 'error')
-            print(f"Error editing transaction: {e}")
-    
-    return render_template('edit_transaction.html', transaction=transaction)
+    return redirect(url_for('index'))
 
 @app.route('/transactions')
 def list_transactions():
@@ -219,12 +203,9 @@ def list_transactions():
         .where(Transaction.deleted_at.is_(None))
         .order_by(Transaction.date.desc())
     ).all()
-    
+
     return render_template('list_transactions.html', transactions=format_transactions(transactions))
 
-if __name__ == '__main__':
-    app.run(debug=True)
-``` ```python
 @app.route('/search', methods=['GET', 'POST'])
 def search_transactions():
     if request.method == 'POST':
@@ -232,11 +213,13 @@ def search_transactions():
         transactions = db.session.scalars(
             db.select(Transaction)
             .where(Transaction.deleted_at.is_(None))
-            .filter(Transaction.description.ilike(f'%{search_query}%'))
+            .where(Transaction.description.ilike(f'%{search_query}%'))
             .order_by(Transaction.date.desc())
         ).all()
-        return render_template('list_transactions.html', transactions=format_transactions(transactions), search_query=search_query)
-    
+        return render_template('list_transactions.html',
+                               transactions=format_transactions(transactions),
+                               search_query=search_query)
+
     return render_template('search_transactions.html')
 
 @app.route('/report')
@@ -246,12 +229,16 @@ def generate_report():
         .where(Transaction.deleted_at.is_(None))
         .order_by(Transaction.date)
     ).all()
-    
+
     total_income = sum(t.amount for t in transactions if t.type == 'income')
     total_expense = sum(t.amount for t in transactions if t.type == 'expense')
     balance = total_income - total_expense
-    
-    return render_template('report.html', transactions=format_transactions(transactions), total_income=total_income, total_expense=total_expense, balance=balance)
+
+    return render_template('report.html',
+                           transactions=format_transactions(transactions),
+                           total_income=total_income,
+                           total_expense=total_expense,
+                           balance=balance)
 
 if __name__ == '__main__':
     app.run(debug=True)
