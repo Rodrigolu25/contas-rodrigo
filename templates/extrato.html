@@ -83,31 +83,4 @@
                         <td>{{ transaction.date }}</td>
                         <td>{{ transaction.description }}</td>
                         <td>{{ transaction.category }}</td>
-                        <td>{{ 'Receita' if transaction.type == 'income' else 'Despesa' }}</td>
-                        <td class="amount">
-                            {% if transaction.type == 'income' %}+{% else %}-{% endif %}
-                            R$ {{ "%.2f"|format(transaction.amount) }}
-                        </td>
-                        <td class="actions">
-                            <a href="{{ url_for('delete_transaction', id=transaction.id) }}" 
-                               class="btn btn-danger btn-sm"
-                               title="Excluir"
-                               data-confirm="Tem certeza que deseja mover para a lixeira?">
-                                <i class="fas fa-trash"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="no-transactions">
-            <p>Nenhuma transação encontrada para o período selecionado.</p>
-            <a href="{{ url_for('add_transaction') }}" class="btn btn-primary">
- <i class="fas fa-plus-circle"></i> Adicionar Transação
-            </a>
-        </div>
-    {% endif %}
-</section>
-{% endblock %}
+                        <td>{{ 'Receita' if transaction
