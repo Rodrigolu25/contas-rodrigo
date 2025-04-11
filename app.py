@@ -56,19 +56,15 @@ class Transaction(db.Model):
 with app.app_context():
     try:
         db.create_all()
-        print(f"Database created at: {DB_PATH}")
     except Exception as e:
-        print(f"Error creating database: {e}")
-        # Try creating the database file manually
         try:
             conn = sqlite3.connect(DB_PATH)
             conn.close()
             db.create_all()
         except Exception as e:
-            print(f"Failed to create database: {e}")
             raise
 
-# Context processor for template variables
+# Context processor
 @app.context_processor
 def inject_now():
     return {
@@ -76,18 +72,27 @@ def inject_now():
         'current_year': date.today().year
     }
 
-# Helper function to format transactions
+# Format transactions
 def format_transactions(transactions):
     formatted = []
     for t in transactions:
         try:
-            # Handle all possible date formats
             if isinstance(t.date, str):
                 transaction_date = datetime.strptime(t.date, '%Y-%m-%d').date()
             elif isinstance(t.date, date):
                 transaction_date = t.date
             else:
                 transaction_date = t.date.date() if hasattr(t.date, 'date') else date.today()
+            
+            if t.deleted_at:
+                if isinstance(t.deleted_at, str):
+                    deleted_at_fmt = datetime.fromisoformat(t.deleted_at).strftime('%d/%m/%Y %H:%M')
+                elif isinstance(t.deleted_at, datetime):
+                    deleted_at_fmt = t.deleted_at.strftime('%d/%m/%Y %H:%M')
+                else:
+                    deleted_at_fmt = None
+            else:
+                deleted_at_fmt = None
             
             formatted.append({
                 'id': t.id,
@@ -97,22 +102,20 @@ def format_transactions(transactions):
                 'type': t.type,
                 'date': transaction_date.strftime('%d/%m/%Y'),
                 'original_date': transaction_date,
-                'deleted_at': t.deleted_at.strftime('%d/%m/%Y %H:%M') if t.deleted_at else None
+                'deleted_at': deleted_at_fmt
             })
         except Exception as e:
-            print(f"Error formatting transaction {t.id}: {str(e)}")
+            print(f"Erro ao formatar transação {t.id}: {str(e)}")
             continue
             
     return formatted
 
-# Routes
 @app.route('/')
 def index():
     today = date.today()
     current_month = today.month
     current_year = today.year
     
-    # Calculate totals
     incomes = db.session.scalar(
         db.select(func.sum(Transaction.amount))
         .where(Transaction.type == 'income')
@@ -131,7 +134,6 @@ def index():
     
     balance = incomes - expenses
     
-    # Get recent transactions
     transactions = db.session.scalars(
         db.select(Transaction)
         .where(Transaction.deleted_at.is_(None))
@@ -149,7 +151,6 @@ def index():
 def add_transaction():
     if request.method == 'POST':
         try:
-            # Validate and create transaction
             transaction = Transaction(
                 description=request.form['description'],
                 amount=request.form['amount'],
@@ -195,7 +196,6 @@ def extrato():
         month = request.args.get('month', type=int)
         year = request.args.get('year', type=int)
         
-        # Build query with filters
         query = db.select(Transaction).where(Transaction.deleted_at.is_(None))
         
         if year:
@@ -207,10 +207,8 @@ def extrato():
             query.order_by(Transaction.date.desc())
         ).all()
         
-        # Format transactions before using
         formatted_transactions = format_transactions(transactions)
         
-        # Calculate totals
         total_income = db.session.scalar(
             db.select(func.sum(Transaction.amount))
             .where(Transaction.type == 'income')
@@ -229,7 +227,6 @@ def extrato():
         
         balance = total_income - total_expense
         
-        # Get available years for filter
         available_years = [
             int(row[0]) for row in db.session.execute(
                 db.select(extract('year', Transaction.date).distinct())
@@ -313,17 +310,13 @@ def empty_trash():
     return redirect(url_for('trash'))
 
 if __name__ == '__main__':
-    # Check database permissions
     try:
         if not DB_PATH.exists():
-            DB_PATH.touch(mode=0o666)  # Set permissions
-        # Test write access
+            DB_PATH.touch(mode=0o666)
         with open(DB_PATH, 'a'):
             pass
         print("Database permissions verified")
     except PermissionError:
         print(f"Permission denied for database file: {DB_PATH}")
-        print("Please check directory permissions or run as administrator")
     
-    # Run the app
     app.run(debug=True)
