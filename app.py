@@ -71,7 +71,11 @@ def format_transactions(transactions):
     formatted = []
     for t in transactions:
         try:
-            transaction_date = t.date if isinstance(t.date, date) else datetime.strptime(t.date, '%Y-%m-%d').date()
+            if isinstance(t.date, date):
+                transaction_date = t.date
+            else:
+                print(f"Invalid date format for transaction {t.id}: {t.date}")
+                continue  # Skip this transaction if the date is invalid
             
             formatted.append({
                 'id': t.id,
@@ -176,9 +180,9 @@ def extrato():
         
         query = db.select(Transaction).where(Transaction.deleted_at.is_(None))
         
-        if year:
+        if year is not None:
             query = query.where(extract('year', Transaction.date) == year)
-        if month:
+        if month is not None:
             query = query.where(extract('month', Transaction.date) == month)
         
         transactions = db.session.scalars(
